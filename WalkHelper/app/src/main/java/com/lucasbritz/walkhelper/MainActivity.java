@@ -128,14 +128,17 @@ public class MainActivity extends Activity implements SensorEventListener {
                 SensorManager.getOrientation(R, orientation);
 
                 azimut = orientation[0];
-                rotation = (int) (-azimut * 360 / (2 * 3.14159f));
+                rotation = (int) ((Math.toDegrees(azimut) + 360) % 360);
 
                 if (tvRotation.getText().toString() == "") {
                     tvRotation.setText(String.format("%dº", rotation));
                 } else {
-                    String aux = tvRotation.getText().toString().replace("º", "");
-                    int aux2 = rotation - Integer.valueOf(aux);
-                    if (aux2 > 4 || aux2 < -4) {
+                    int beforeRotation = Integer.valueOf(tvRotation.getText().toString().replace("º", ""));
+                    int difRotation = Math.abs(rotation - beforeRotation);
+
+                    difRotation = difRotation > 300 ? 360 - difRotation : difRotation;
+
+                    if (difRotation > 9) {
                         tvRotation.setText(String.format("%dº", rotation));
                     }
                 }
