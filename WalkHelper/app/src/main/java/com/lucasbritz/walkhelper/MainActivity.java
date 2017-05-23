@@ -6,6 +6,7 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.os.Vibrator;
 import android.speech.tts.TextToSpeech;
 import android.os.Bundle;
 import android.widget.TextView;
@@ -22,6 +23,9 @@ import static android.hardware.Sensor.TYPE_MAGNETIC_FIELD;
 
 public class MainActivity extends Activity implements SensorEventListener {
 
+    private static final String DIREITA = "direita";
+    private static final String ESQUERDA = "esquerda";
+
     private TextView tvLocation;
     private TextView tvRotation;
     private TextToSpeech textToSpeech;
@@ -34,9 +38,17 @@ public class MainActivity extends Activity implements SensorEventListener {
     private float[] mGeomagnetic;
     private float azimut;
     private int rotation;
+    private int angleTo;
+
+    private String textAngle;
+    private String textDirection;
 
     private Sensor accelerometer;
     private Sensor magnetometer;
+
+    private boolean isFirstTime = true;
+
+    Vibrator vibrator;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,6 +58,8 @@ public class MainActivity extends Activity implements SensorEventListener {
         mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         accelerometer = mSensorManager.getDefaultSensor(TYPE_ACCELEROMETER);
         magnetometer = mSensorManager.getDefaultSensor(TYPE_MAGNETIC_FIELD);
+
+        vibrator = (Vibrator) getApplicationContext().getSystemService(Context.VIBRATOR_SERVICE);
 
         tvLocation = (TextView) findViewById(R.id.tvLocation);
         tvRotation = (TextView) findViewById(R.id.tvRotation);
@@ -68,18 +82,23 @@ public class MainActivity extends Activity implements SensorEventListener {
 
             options = buildTextOptions(beacon, idBeaconFrom);
 
-            textToSpeech = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
-                @Override
-                public void onInit(int status) {
-                    if (status != TextToSpeech.ERROR) {
-                        textToSpeech.setLanguage(Locale.getDefault());
-                        String toSpeak = "Você está em " + tvLocation.getText().toString() + ". ";
-                        toSpeak += options;
-                        textToSpeech.speak(toSpeak, TextToSpeech.QUEUE_FLUSH, null, null);
-                    }
-                }
-            });
+            String textToSpeech = "Você está em " + tvLocation.getText().toString()
+                    + ". " + options;
+
+            speechText(textToSpeech);
         }
+    }
+
+    private void speechText(String text) {
+        textToSpeech = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int status) {
+                if (status != TextToSpeech.ERROR) {
+                    textToSpeech.setLanguage(Locale.getDefault());
+                    textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, null);
+                }
+            }
+        });
     }
 
     @Override
@@ -140,10 +159,53 @@ public class MainActivity extends Activity implements SensorEventListener {
 
                     if (difRotation > 9) {
                         tvRotation.setText(String.format("%dº", rotation));
+
+                        angleTo = 192;
+                        if (isCorrectAngle(angleTo, rotation)) {
+                            vibrator.vibrate(500);
+                        } else {
+                            int correctionAngle = rotation - angleTo;
+                            boolean speech = false;
+
+                            if (!(DIREITA).equals(textDirection) && ((correctionAngle < 0
+                                    && correctionAngle >= -180) || correctionAngle > 180)) {
+
+                                // virar direita
+                                textDirection = DIREITA;
+                                if (isFirstTime) {
+                                    textAngle = "vire a direita até seu celular vibrar";
+                                    isFirstTime = false;
+                                } else {
+                                    textAngle = "direita";
+                                }
+                                speech = true;
+
+                            } else if (!(ESQUERDA).equals(textDirection)) {
+                                // virar esquerda
+                                textDirection = ESQUERDA;
+                                if (isFirstTime) {
+                                    textAngle = "vire a esquerda até seu celular vibrar";
+                                    isFirstTime = false;
+                                } else {
+                                    textAngle = "esquerda";
+                                }
+                                speech = true;
+                            }
+
+                            if (speech) {
+                                speechText(textAngle);
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+
+    private boolean isCorrectAngle(int angleTo, int rotation) {
+        int difAngle = Math.abs(angleTo - rotation);
+
+        return difAngle <= 5;
     }
 
     private String buildTextOptions(Beacon beacon, Long idBeaconFrom) {
