@@ -7,17 +7,34 @@ import java.util.ArrayList;
  */
 
 public class Beacon {
-    private Long id;
+    private String id;
     private double latitude;
     private double longitude;
-    private String location;
+    private String description;
+    private int floorLevel;
+    private boolean active;
     private ArrayList<Beacon> neighborhood;
 
-    public Long getId() {
+    public Beacon() {
+        active = true;
+    }
+
+    public Beacon(String id, double latitude, double longitude,
+                  String description, int floorLevel, boolean active) {
+
+        this.id = id;
+        this.latitude = latitude;
+        this.longitude = longitude;
+        this.description = description;
+        this.floorLevel = floorLevel;
+        this.active = active;
+    }
+
+    public String getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(String id) {
         this.id = id;
     }
 
@@ -37,12 +54,28 @@ public class Beacon {
         this.longitude = longitude;
     }
 
-    public String getLocation() {
-        return location;
+    public String getDescription() {
+        return description;
     }
 
-    public void setLocation(String location) {
-        this.location = location;
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public int getFloorLevel() {
+        return floorLevel;
+    }
+
+    public void setFloorLevel(int floorLevel) {
+        this.floorLevel = floorLevel;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
     }
 
     public ArrayList<Beacon> getNeighborhood() {

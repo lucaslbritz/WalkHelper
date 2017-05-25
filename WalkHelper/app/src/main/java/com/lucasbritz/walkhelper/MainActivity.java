@@ -9,10 +9,10 @@ import android.hardware.SensorManager;
 import android.os.Vibrator;
 import android.speech.tts.TextToSpeech;
 import android.os.Bundle;
+import android.view.View;
 import android.widget.TextView;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 import java.util.ArrayList;
@@ -23,14 +23,18 @@ import static android.hardware.Sensor.TYPE_MAGNETIC_FIELD;
 
 public class MainActivity extends Activity implements SensorEventListener {
 
-    private static final String DIREITA = "direita";
-    private static final String ESQUERDA = "esquerda";
+    private static final String RIGHT = "direita";
+    private static final String LEFT = "esquerda";
+    private static final String FRONT = "frente";
+
+    BeaconRepository beaconRepository = new BeaconRepository();
 
     private TextView tvLocation;
     private TextView tvRotation;
     private TextToSpeech textToSpeech;
+    private TextToSpeech angleToSpeech;
     private String options;
-    private ArrayList<Long> breadcrumb;
+    private ArrayList<String> breadcrumb;
 
     private SensorManager mSensorManager;
 
@@ -39,6 +43,8 @@ public class MainActivity extends Activity implements SensorEventListener {
     private float azimut;
     private int rotation;
     private int angleTo;
+    private int sumAngles;
+    private int countAngles;
 
     private String textAngle;
     private String textDirection;
@@ -47,6 +53,11 @@ public class MainActivity extends Activity implements SensorEventListener {
     private Sensor magnetometer;
 
     private boolean isFirstTime = true;
+    private boolean speech = true;
+    private boolean start = false;
+
+    private long startTime;
+    private long endTime;
 
     Vibrator vibrator;
 
@@ -66,49 +77,46 @@ public class MainActivity extends Activity implements SensorEventListener {
         breadcrumb = new ArrayList<>();
 
         // Test
-        breadcrumb.add(1L);
-        breadcrumb.add(2L);
-        breadcrumb.add(3L);
-        breadcrumb.add(4L);
-        breadcrumb.add(5L);
-        breadcrumb.add(6L);
+        breadcrumb.add("1");
+        breadcrumb.add("2");
+        breadcrumb.add("3");
+        breadcrumb.add("4");
+        breadcrumb.add("5");
+        breadcrumb.add("6");
 
-        Beacon beacon = readBeacon(createBeacon7());
+        Beacon beacon = readBeacon(beaconRepository.createBeacon7());
 
         if (beacon != null) {
-            Long idBeaconFrom = breadcrumb.size() > 0 ? breadcrumb.get(breadcrumb.size() - 1) : null;
+            String idBeaconFrom = breadcrumb.size() > 0 ? breadcrumb.get(breadcrumb.size() - 1) : null;
             breadcrumb.add(beacon.getId());
-            tvLocation.setText(beacon.getLocation());
+            tvLocation.setText(beacon.getDescription());
 
             options = buildTextOptions(beacon, idBeaconFrom);
 
-            String textToSpeech = "Você está em " + tvLocation.getText().toString()
+            String text = "Você está em " + tvLocation.getText().toString()
                     + ". " + options;
 
-            speechText(textToSpeech);
-        }
-    }
-
-    private void speechText(String text) {
-        textToSpeech = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
-            @Override
-            public void onInit(int status) {
-                if (status != TextToSpeech.ERROR) {
-                    textToSpeech.setLanguage(Locale.getDefault());
-                    textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, null);
+            textToSpeech = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
+                @Override
+                public void onInit(int status) {
+                    if (status != TextToSpeech.ERROR) {
+                        textToSpeech.setLanguage(Locale.getDefault());
+                        textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, null);
+                    }
                 }
-            }
-        });
+            });
+
+            angleTo = 192;
+//            defineDirectionTo();
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
 
-        mSensorManager.registerListener(this, accelerometer,
-                SensorManager.SENSOR_DELAY_NORMAL, SensorManager.SENSOR_DELAY_UI);
-        mSensorManager.registerListener(this, magnetometer,
-                SensorManager.SENSOR_DELAY_NORMAL, SensorManager.SENSOR_DELAY_UI);
+        mSensorManager.registerListener(this, accelerometer, 500000, 500000);
+        mSensorManager.registerListener(this, magnetometer, 500000, 500000);
     }
 
     @Override
@@ -118,6 +126,11 @@ public class MainActivity extends Activity implements SensorEventListener {
         if (textToSpeech != null) {
             textToSpeech.stop();
             textToSpeech.shutdown();
+        }
+
+        if (angleToSpeech != null) {
+            angleToSpeech.stop();
+            angleToSpeech.shutdown();
         }
 
         mSensorManager.unregisterListener(this, accelerometer);
@@ -149,74 +162,115 @@ public class MainActivity extends Activity implements SensorEventListener {
                 azimut = orientation[0];
                 rotation = (int) ((Math.toDegrees(azimut) + 360) % 360);
 
-                if (tvRotation.getText().toString() == "") {
-                    tvRotation.setText(String.format("%dº", rotation));
-                } else {
-                    int beforeRotation = Integer.valueOf(tvRotation.getText().toString().replace("º", ""));
-                    int difRotation = Math.abs(rotation - beforeRotation);
+                tvRotation.setText(String.format("%dº", rotation));
 
-                    difRotation = difRotation > 300 ? 360 - difRotation : difRotation;
-
-                    if (difRotation > 9) {
-                        tvRotation.setText(String.format("%dº", rotation));
-
-                        angleTo = 192;
-                        if (isCorrectAngle(angleTo, rotation)) {
-                            vibrator.vibrate(500);
-                        } else {
-                            int correctionAngle = rotation - angleTo;
-                            boolean speech = false;
-
-                            if (!(DIREITA).equals(textDirection) && ((correctionAngle < 0
-                                    && correctionAngle >= -180) || correctionAngle > 180)) {
-
-                                // virar direita
-                                textDirection = DIREITA;
-                                if (isFirstTime) {
-                                    textAngle = "vire a direita até seu celular vibrar";
-                                    isFirstTime = false;
-                                } else {
-                                    textAngle = "direita";
-                                }
-                                speech = true;
-
-                            } else if (!(ESQUERDA).equals(textDirection)) {
-                                // virar esquerda
-                                textDirection = ESQUERDA;
-                                if (isFirstTime) {
-                                    textAngle = "vire a esquerda até seu celular vibrar";
-                                    isFirstTime = false;
-                                } else {
-                                    textAngle = "esquerda";
-                                }
-                                speech = true;
-                            }
-
-                            if (speech) {
-                                speechText(textAngle);
-                            }
-                        }
-                    }
+                if (start) {
+                    calculateDirection();
                 }
             }
         }
     }
 
-    private boolean isCorrectAngle(int angleTo, int rotation) {
+    public void defineDirectionTo(View view) {
+        textDirection = "";
+        start = true;
+
+        calculateDirection();
+    }
+
+    private void calculateDirection() {
+//        if ((FRONT).equals(textDirection)) {
+//            sumAngles += rotation;
+//            countAngles++;
+//            rotation = (int) sumAngles / countAngles;
+//        }
+
+        int correctionAngle = rotation - angleTo;
+        if (!isCorrectAngle() && ((correctionAngle < 0
+                && correctionAngle >= -180) || correctionAngle > 180)) {
+
+            // direita
+            if (isFirstTime) {
+                textAngle = "vire à direita até seu celular vibrar";
+                isFirstTime = false;
+                speech = true;
+            } else if (!(RIGHT).equals(textDirection)) {
+                startTime = System.currentTimeMillis();
+            } else if (startTime != 0) {
+                endTime = System.currentTimeMillis();
+                if (endTime - startTime >= 1000) {
+                    textAngle = "direita";
+                    speech = true;
+                    startTime = 0;
+                    endTime = 0;
+                }
+            }
+            textDirection = RIGHT;
+
+        } else if (!isCorrectAngle() && ((correctionAngle > 0
+                && correctionAngle <= 180) || correctionAngle < -180)) {
+
+            // esquerda
+            if (isFirstTime) {
+                textAngle = "vire à esquerda até seu celular vibrar";
+                isFirstTime = false;
+                speech = true;
+            } else if (!(LEFT).equals(textDirection)) {
+                startTime = System.currentTimeMillis();
+            } else if (startTime != 0) {
+                endTime = System.currentTimeMillis();
+                if (endTime - startTime >= 1000) {
+                    textAngle = "esquerda";
+                    speech = true;
+                    startTime = 0;
+                    endTime = 0;
+                }
+            }
+            textDirection = LEFT;
+
+        } else {
+            // frente
+            if (isCorrectAngle() && !(FRONT).equals(textDirection) && startTime == 0) {
+                vibrator.vibrate(500);
+                textAngle = "em frente";
+                isFirstTime = false;
+                speech = true;
+                sumAngles = rotation;
+                countAngles = 1;
+            }
+            textDirection = FRONT;
+        }
+
+        if (speech) {
+            speech = false;
+            angleToSpeech = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
+                @Override
+                public void onInit(int status) {
+                    if (status != TextToSpeech.ERROR) {
+                        angleToSpeech.setLanguage(Locale.getDefault());
+                        angleToSpeech.speak(textAngle, TextToSpeech.QUEUE_FLUSH, null, null);
+                    }
+                }
+            });
+        }
+    }
+
+    private boolean isCorrectAngle() {
         int difAngle = Math.abs(angleTo - rotation);
+        difAngle = difAngle > 300 ? 360 - difAngle : difAngle;
 
         return difAngle <= 5;
     }
 
-    private String buildTextOptions(Beacon beacon, Long idBeaconFrom) {
+    private String buildTextOptions(Beacon beacon, String idBeaconFrom) {
         String options;
         Beacon beaconFrom = new Beacon();
 
-        if (idBeaconFrom != null) {
+        if (!idBeaconFrom.isEmpty()) {
             beaconFrom = beacon.getNeighborhood().stream()
-                    .filter(b -> b.getId() == idBeaconFrom).findFirst().get();
+                    .filter(b -> b.getId().equals(idBeaconFrom)).findFirst().get();
 
-            beacon.getNeighborhood().removeIf (b -> b.getId() == idBeaconFrom);
+            beacon.getNeighborhood().remove(beaconFrom);
         }
         int numNeighbors = beacon.getNeighborhood().size();
 
@@ -226,18 +280,18 @@ public class MainActivity extends Activity implements SensorEventListener {
 
             for (int i = 0; i < numNeighbors; i++) {
                 Beacon beaconTo = beacon.getNeighborhood().get(i);
-                String neighbor = beaconTo.getLocation();
+                String neighbor = beaconTo.getDescription();
                 int dist = calculateDistance(beacon, beaconTo);
                 int angleTo = calculateAngle(beacon, beaconTo);
 
                 String messageAngle = buildTextAngle(angleFrom, angleTo);
 
                 if (i == 0) {
-                    options += neighbor + ", a " + dist + " metros " + messageAngle;
+                    options += neighbor; // + ", a " + dist + " metros " + messageAngle;
                 } else if (i == numNeighbors - 1) {
-                    options += " ou " + neighbor + ", a " + dist + " metros " + messageAngle + "?";
+                    options += " ou " + neighbor; // + ", a " + dist + " metros " + messageAngle + "?";
                 } else {
-                    options += ", " + neighbor + ", a " + dist + " metros " + messageAngle;
+                    options += ", " + neighbor; // + ", a " + dist + " metros " + messageAngle;
                 }
             }
         } else {
@@ -246,9 +300,9 @@ public class MainActivity extends Activity implements SensorEventListener {
             } else {
                 Beacon beaconTo = beacon.getNeighborhood().get(0);
                 double dist = calculateDistance(beacon, beaconTo);
-                String neighbor = beaconTo.getLocation();
+                String neighbor = beaconTo.getDescription();
 
-                options = neighbor + ", a " + dist + " metros.";
+                options = neighbor; // + ", a " + dist + " metros.";
             }
         }
 
@@ -275,7 +329,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         Gson gson = new Gson();
         Beacon beacon = null;
         if (beaconData.has("id") && beaconData.has("latitude")
-                && beaconData.has("longitude") && beaconData.has("location")) {
+                && beaconData.has("longitude") && beaconData.has("description")) {
 
             beacon = gson.fromJson(beaconData, Beacon.class);
         }
@@ -330,223 +384,5 @@ public class MainActivity extends Activity implements SensorEventListener {
         angle = 360 - (angle + 360) % 360;
 
         return (int) angle;
-    }
-
-    private JsonObject createBeacon1() {
-        JsonObject beaconData = beacon1();
-
-        JsonArray array = new JsonArray();
-        array.add(beacon2());
-
-        beaconData.add("neighborhood", array);
-
-        return beaconData;
-    }
-
-    private JsonObject createBeacon2() {
-        JsonObject beaconData = beacon2();
-
-        JsonArray array = new JsonArray();
-        array.add(beacon1());
-        array.add(beacon3());
-
-        beaconData.add("neighborhood", array);
-
-        return beaconData;
-    }
-
-    private JsonObject createBeacon3() {
-        JsonObject beaconData = beacon3();
-
-        JsonArray array = new JsonArray();
-        array.add(beacon2());
-        array.add(beacon4());
-
-        beaconData.add("neighborhood", array);
-
-        return beaconData;
-    }
-
-    private JsonObject createBeacon4() {
-        JsonObject beaconData = beacon4();
-
-        JsonArray array = new JsonArray();
-        array.add(beacon3());
-        array.add(beacon5());
-
-        beaconData.add("neighborhood", array);
-
-        return beaconData;
-    }
-
-    private JsonObject createBeacon5() {
-        JsonObject beaconData = beacon5();
-
-        JsonArray array = new JsonArray();
-        array.add(beacon4());
-        array.add(beacon6());
-
-        beaconData.add("neighborhood", array);
-
-        return beaconData;
-    }
-
-    private JsonObject createBeacon6() {
-        JsonObject beaconData = beacon6();
-
-        JsonArray array = new JsonArray();
-        array.add(beacon5());
-        array.add(beacon7());
-
-        beaconData.add("neighborhood", array);
-
-        return beaconData;
-    }
-
-    private JsonObject createBeacon7() {
-        JsonObject beaconData = beacon7();
-
-        JsonArray array = new JsonArray();
-        array.add(beacon6());
-        array.add(beacon8());
-        array.add(beacon9());
-        array.add(beacon10());
-
-        beaconData.add("neighborhood", array);
-
-        return beaconData;
-    }
-
-    private JsonObject createBeacon8() {
-        JsonObject beaconData = beacon8();
-
-        JsonArray array = new JsonArray();
-        array.add(beacon7());
-
-        beaconData.add("neighborhood", array);
-
-        return beaconData;
-    }
-
-    private JsonObject createBeacon9() {
-        JsonObject beaconData = beacon9();
-
-        JsonArray array = new JsonArray();
-        array.add(beacon7());
-
-        beaconData.add("neighborhood", array);
-
-        return beaconData;
-    }
-
-    private JsonObject createBeacon10() {
-        JsonObject beaconData = beacon3();
-
-        JsonArray array = new JsonArray();
-        array.add(beacon7());
-
-        beaconData.add("neighborhood", array);
-
-        return beaconData;
-    }
-
-    private JsonObject beacon1() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", 1);
-        beaconData.addProperty("latitude", -29.792233);
-        beaconData.addProperty("longitude", -51.154587);
-        beaconData.addProperty("location", "Unisinos. Acesso principal");
-
-        return beaconData;
-    }
-
-    private JsonObject beacon2() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", 2);
-        beaconData.addProperty("latitude", -29.792576);
-        beaconData.addProperty("longitude", -51.154477);
-        beaconData.addProperty("location", "B02");
-
-        return beaconData;
-    }
-
-    private JsonObject beacon3() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", "3");
-        beaconData.addProperty("latitude", "-29.792732");
-        beaconData.addProperty("longitude", "-51.154429");
-        beaconData.addProperty("location", "B03");
-
-        return beaconData;
-    }
-
-    private JsonObject beacon4() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", "4");
-        beaconData.addProperty("latitude", "-29.792918");
-        beaconData.addProperty("longitude", "-51.154365");
-        beaconData.addProperty("location", "B04");
-
-        return beaconData;
-    }
-
-    private JsonObject beacon5() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", "5");
-        beaconData.addProperty("latitude", "-29.793078");
-        beaconData.addProperty("longitude", "-51.154331");
-        beaconData.addProperty("location", "B05");
-
-        return beaconData;
-    }
-
-    private JsonObject beacon6() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", "6");
-        beaconData.addProperty("latitude", "-29.793248");
-        beaconData.addProperty("longitude", "-51.154283");
-        beaconData.addProperty("location", "B06");
-
-        return beaconData;
-    }
-
-    private JsonObject beacon7() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", "7");
-        beaconData.addProperty("latitude", "-29.793767");
-        beaconData.addProperty("longitude", "-51.154152");
-        beaconData.addProperty("location", "B07");
-
-        return beaconData;
-    }
-
-    private JsonObject beacon8() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", "8");
-        beaconData.addProperty("latitude", "-29.793639");
-        beaconData.addProperty("longitude", "-51.153535");
-        beaconData.addProperty("location", "auditório central");
-
-        return beaconData;
-    }
-
-    private JsonObject beacon9() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", "9");
-        beaconData.addProperty("latitude", "-29.794247");
-        beaconData.addProperty("longitude", "-51.154771");
-        beaconData.addProperty("location", "redondo");
-
-        return beaconData;
-    }
-
-    private JsonObject beacon10() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", "10");
-        beaconData.addProperty("latitude", "-29.795341");
-        beaconData.addProperty("longitude", "-51.153741");
-        beaconData.addProperty("location", "corredor principal. Próximo ao Fratelo");
-
-        return beaconData;
     }
 }
