@@ -6,6 +6,7 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.os.Handler;
 import android.os.Vibrator;
 import android.speech.tts.TextToSpeech;
 import android.os.Bundle;
@@ -32,7 +33,6 @@ public class MainActivity extends Activity implements SensorEventListener {
     private TextView tvLocation;
     private TextView tvRotation;
     private TextToSpeech textToSpeech;
-    private TextToSpeech angleToSpeech;
     private String options;
     private ArrayList<String> breadcrumb;
 
@@ -43,8 +43,6 @@ public class MainActivity extends Activity implements SensorEventListener {
     private float azimut;
     private int rotation;
     private int angleTo;
-    private int sumAngles;
-    private int countAngles;
 
     private String textAngle;
     private String textDirection;
@@ -53,13 +51,17 @@ public class MainActivity extends Activity implements SensorEventListener {
     private Sensor magnetometer;
 
     private boolean isFirstTime = true;
-    private boolean speech = true;
+    private boolean toSpeech = true;
     private boolean start = false;
+    private boolean runningRight = false;
+    private boolean runningLeft = false;
 
     private long startTime;
     private long endTime;
 
     Vibrator vibrator;
+
+    Handler handler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -96,19 +98,23 @@ public class MainActivity extends Activity implements SensorEventListener {
             String text = "Você está em " + tvLocation.getText().toString()
                     + ". " + options;
 
-            textToSpeech = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
-                @Override
-                public void onInit(int status) {
-                    if (status != TextToSpeech.ERROR) {
-                        textToSpeech.setLanguage(Locale.getDefault());
-                        textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, null);
-                    }
-                }
-            });
+           speech(text);
 
             angleTo = 192;
 //            defineDirectionTo();
         }
+    }
+
+    private void speech(String text) {
+        textToSpeech = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int status) {
+                if (status != TextToSpeech.ERROR) {
+                    textToSpeech.setLanguage(Locale.getDefault());
+                    textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, null);
+                }
+            }
+        });
     }
 
     @Override
@@ -126,11 +132,6 @@ public class MainActivity extends Activity implements SensorEventListener {
         if (textToSpeech != null) {
             textToSpeech.stop();
             textToSpeech.shutdown();
-        }
-
-        if (angleToSpeech != null) {
-            angleToSpeech.stop();
-            angleToSpeech.shutdown();
         }
 
         mSensorManager.unregisterListener(this, accelerometer);
@@ -179,11 +180,19 @@ public class MainActivity extends Activity implements SensorEventListener {
     }
 
     private void calculateDirection() {
-//        if ((FRONT).equals(textDirection)) {
-//            sumAngles += rotation;
-//            countAngles++;
-//            rotation = (int) sumAngles / countAngles;
-//        }
+        final Runnable runnable = new Runnable() {
+            public void run() {
+                if ((LEFT).equals(textDirection)) {
+                    textAngle = "esquerda";
+                    toSpeech = true;
+                    runningLeft = false;
+                } else if ((RIGHT).equals(textDirection)) {
+                    textAngle = "direita";
+                    toSpeech = true;
+                    runningRight = false;
+                }
+            }
+        };
 
         int correctionAngle = rotation - angleTo;
         if (!isCorrectAngle() && ((correctionAngle < 0
@@ -193,18 +202,29 @@ public class MainActivity extends Activity implements SensorEventListener {
             if (isFirstTime) {
                 textAngle = "vire à direita até seu celular vibrar";
                 isFirstTime = false;
-                speech = true;
+                toSpeech = true;
             } else if (!(RIGHT).equals(textDirection)) {
                 startTime = System.currentTimeMillis();
             } else if (startTime != 0) {
                 endTime = System.currentTimeMillis();
                 if (endTime - startTime >= 1000) {
                     textAngle = "direita";
-                    speech = true;
+                    toSpeech = true;
                     startTime = 0;
                     endTime = 0;
+                    runningRight = false;
+                    runningLeft = false;
                 }
             }
+
+            if ((RIGHT).equals(textDirection) && startTime == 0) {
+                handler = new Handler();
+                if (!runningRight) {
+                    runningRight = true;
+                    handler.postDelayed(runnable, 5000);
+                }
+            }
+
             textDirection = RIGHT;
 
         } else if (!isCorrectAngle() && ((correctionAngle > 0
@@ -214,18 +234,29 @@ public class MainActivity extends Activity implements SensorEventListener {
             if (isFirstTime) {
                 textAngle = "vire à esquerda até seu celular vibrar";
                 isFirstTime = false;
-                speech = true;
+                toSpeech = true;
             } else if (!(LEFT).equals(textDirection)) {
                 startTime = System.currentTimeMillis();
             } else if (startTime != 0) {
                 endTime = System.currentTimeMillis();
                 if (endTime - startTime >= 1000) {
                     textAngle = "esquerda";
-                    speech = true;
+                    toSpeech = true;
                     startTime = 0;
                     endTime = 0;
+                    runningRight = false;
+                    runningLeft = false;
                 }
             }
+
+            if ((LEFT).equals(textDirection) && startTime == 0) {
+                handler = new Handler();
+                if (!runningLeft) {
+                    runningLeft = true;
+                    handler.postDelayed(runnable, 5000);
+                }
+            }
+
             textDirection = LEFT;
 
         } else {
@@ -234,24 +265,16 @@ public class MainActivity extends Activity implements SensorEventListener {
                 vibrator.vibrate(500);
                 textAngle = "em frente";
                 isFirstTime = false;
-                speech = true;
-                sumAngles = rotation;
-                countAngles = 1;
+                toSpeech = true;
+                runningRight = false;
+                runningLeft = false;
             }
             textDirection = FRONT;
         }
 
-        if (speech) {
-            speech = false;
-            angleToSpeech = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
-                @Override
-                public void onInit(int status) {
-                    if (status != TextToSpeech.ERROR) {
-                        angleToSpeech.setLanguage(Locale.getDefault());
-                        angleToSpeech.speak(textAngle, TextToSpeech.QUEUE_FLUSH, null, null);
-                    }
-                }
-            });
+        if (toSpeech) {
+            speech(textAngle);
+            toSpeech = false;
         }
     }
 
