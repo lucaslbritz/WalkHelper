@@ -3,18 +3,13 @@ package com.lucasbritz.walkhelper;
 import android.Manifest;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCallback;
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
-import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -22,17 +17,17 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Vibrator;
+import android.speech.RecognizerIntent;
 import android.speech.tts.TextToSpeech;
-import android.os.Bundle;
+import android.speech.tts.UtteranceProgressListener;
 import android.util.Log;
 import android.view.View;
+import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
-
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,15 +45,17 @@ public class MainActivity extends Activity implements SensorEventListener {
 
     private static final int PERMISSIONS_REQUEST_ALL_PERMISSIONS = 1;
     private static final String TAG = "MainActivity";
+    private static final String BEACON_ADDRESS = "D3:8A:63:6D:FB:79";
 
     private BluetoothAdapter mBluetoothAdapter;
     private int REQUEST_ENABLE_BT = 1;
     private Handler mHandler;
-    private static final long SCAN_PERIOD = 10000;
+    private static final long SCAN_PERIOD = 1000;
     private BluetoothLeScanner mLEScanner;
     private ScanSettings settings;
     private List<ScanFilter> filters;
-    private BluetoothGatt mGatt;
+
+    private List<Beacon> beacons = beaconRepository.findAllBeacons();
 
     //----------------------------------------------------------------------------------------------
     // Direction
@@ -69,6 +66,7 @@ public class MainActivity extends Activity implements SensorEventListener {
 
     private TextView tvLocation;
     private TextView tvRotation;
+    private Button bTalk;
 
     private SensorManager mSensorManager;
 
@@ -98,12 +96,21 @@ public class MainActivity extends Activity implements SensorEventListener {
     //----------------------------------------------------------------------------------------------
     // Interaction
 
+    private static final int DESTINATION_OPTION = 1;
+    private static final int LOCATION_OPTION = 2;
+    private final int REQ_CODE_SPEECH_INPUT = 100;
+
     private TextToSpeech textToSpeech;
     private String options;
-    private ArrayList<String> breadcrumb;
+    private String answer;
 
+    private ArrayList<String> breadcrumb;
     private boolean isFirstTime = true;
+
     private boolean toSpeech = true;
+    private boolean finishSpeech = false;
+
+    private int speechOption = 0;
 
     //----------------------------------------------------------------------------------------------
 
@@ -142,36 +149,26 @@ public class MainActivity extends Activity implements SensorEventListener {
 
         tvLocation = (TextView) findViewById(R.id.tvLocation);
         tvRotation = (TextView) findViewById(R.id.tvRotation);
+        bTalk = (Button) findViewById(R.id.bTalk);
         breadcrumb = new ArrayList<>();
 
         // -----------------------------------------------------------------------------------------
         // Interaction
 
         // Test
-        breadcrumb.add("1");
-        breadcrumb.add("2");
-        breadcrumb.add("3");
-        breadcrumb.add("4");
-        breadcrumb.add("5");
-        breadcrumb.add("6");
+        breadcrumb.add("01:01:01:01:01:01");
+        breadcrumb.add("02:02:02:02:02:02");
+        breadcrumb.add("03:03:03:03:03:03");
+        breadcrumb.add("04:04:04:04:04:04");
+        breadcrumb.add("05:05:05:05:05:05");
+        breadcrumb.add("06:06:06:06:06:06");
 
-        Beacon beacon = readBeacon(beaconRepository.createBeacon7());
-
-        if (beacon != null) {
-            String idBeaconFrom = breadcrumb.size() > 0 ? breadcrumb.get(breadcrumb.size() - 1) : null;
-            breadcrumb.add(beacon.getId());
-            tvLocation.setText(beacon.getDescription());
-
-            options = buildTextOptions(beacon, idBeaconFrom);
-
-            String text = "Você está em " + tvLocation.getText().toString()
-                    + ". " + options;
-
-           speech(text);
-
-            angleTo = 192;
-//            defineDirectionTo();
-        }
+        bTalk.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                promptSpeechInput();
+            }
+        });
     }
 
     @Override
@@ -187,11 +184,11 @@ public class MainActivity extends Activity implements SensorEventListener {
         } else {
             mLEScanner = mBluetoothAdapter.getBluetoothLeScanner();
             settings = new ScanSettings.Builder()
-                    .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
+                    .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
                     .build();
-            filters = new ArrayList<ScanFilter>();
+            filters = new ArrayList<>();
 
-            scanLeDevice(true);
+            scanLeDevice();
         }
 
         //------------------------------------------------------------------------------------------
@@ -204,13 +201,6 @@ public class MainActivity extends Activity implements SensorEventListener {
     @Override
     protected void onPause() {
         super.onPause();
-
-        //------------------------------------------------------------------------------------------
-        // BLE
-
-        if (mBluetoothAdapter != null && mBluetoothAdapter.isEnabled()) {
-            scanLeDevice(false);
-        }
 
         //------------------------------------------------------------------------------------------
         // Direction
@@ -228,23 +218,9 @@ public class MainActivity extends Activity implements SensorEventListener {
     }
 
     @Override
-    protected void onDestroy() {
-        //------------------------------------------------------------------------------------------
-        // BLE
-
-        if (mGatt == null) {
-            return;
-        }
-        mGatt.close();
-        mGatt = null;
-
-        //------------------------------------------------------------------------------------------
-
-        super.onDestroy();
-    }
-
-    @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
         //------------------------------------------------------------------------------------------
         // BLE
 
@@ -257,8 +233,19 @@ public class MainActivity extends Activity implements SensorEventListener {
         }
 
         //------------------------------------------------------------------------------------------
+        // Interaction
 
-        super.onActivityResult(requestCode, resultCode, data);
+        switch (requestCode) {
+            case REQ_CODE_SPEECH_INPUT: {
+                if (resultCode == RESULT_OK && null != data) {
+                    ArrayList<String> result = data
+                            .getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+
+                    answer = result.get(0);
+                }
+                break;
+            }
+        }
     }
 
     @Override
@@ -298,19 +285,15 @@ public class MainActivity extends Activity implements SensorEventListener {
     //----------------------------------------------------------------------------------------------
     // BLE
 
-    private void scanLeDevice(final boolean enable) {
-        if (enable) {
-            mHandler.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    mLEScanner.stopScan(mScanCallback);
-                }
-            }, SCAN_PERIOD);
+    private void scanLeDevice() {
+        mHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                mLEScanner.startScan(filters, settings, mScanCallback);
+            }
+        }, SCAN_PERIOD);
 
-            mLEScanner.startScan(filters, settings, mScanCallback);
-        } else {
-            mLEScanner.stopScan(mScanCallback);
-        }
+        mLEScanner.startScan(filters, settings, mScanCallback);
     }
 
     private ScanCallback mScanCallback = new ScanCallback() {
@@ -318,8 +301,17 @@ public class MainActivity extends Activity implements SensorEventListener {
         public void onScanResult(int callbackType, ScanResult result) {
             Log.i("callbackType", String.valueOf(callbackType));
             Log.i("result", result.toString());
-            BluetoothDevice btDevice = result.getDevice();
-            connectToDevice(btDevice);
+
+            String name = result.getDevice().getName();
+            String address = result.getDevice().getAddress();
+            int rssi = result.getRssi();
+
+            discoveredBeacon(name, address, rssi);
+        }
+
+        @Override
+        public void onScanFailed(int errorCode) {
+            Log.e("Scan Failed", "Error Code: " + errorCode);
         }
 
         @Override
@@ -328,66 +320,96 @@ public class MainActivity extends Activity implements SensorEventListener {
                 Log.i("ScanResult - Results", sr.toString());
             }
         }
-
-        @Override
-        public void onScanFailed(int errorCode) {
-            Log.e("Scan Failed", "Error Code: " + errorCode);
-        }
     };
 
-    public void connectToDevice(BluetoothDevice device) {
-        if (mGatt == null) {
-            mGatt = device.connectGatt(this, false, gattCallback);
-            scanLeDevice(false);// will stop after first device detection
+    private void discoveredBeacon(String name, String address, int rssi) {
+        if (BEACON_ADDRESS.equalsIgnoreCase(address)
+                && !breadcrumb.contains(address)) {
+            // TODO
+            Handler speechHandler = new Handler();
+            Beacon beacon = beaconRepository.findBeaconByAddress(address);
+            String text = "";
+
+            if (beacon != null) {
+                String addressBeaconFrom = breadcrumb.size() > 0
+                        ? breadcrumb.get(breadcrumb.size() - 1)
+                        : null;
+
+                breadcrumb.add(beacon.getAddress());
+                tvLocation.setText(beacon.getDescription());
+
+                text = buildTextOptions(beacon, addressBeaconFrom);
+
+                angleTo = 192;
+//            defineDirectionTo();
+            } else {
+                text = "Você está em um local sem cobertura de beacons";
+            }
+
+            finishSpeech = false;
+            speech(text);
+            Toast.makeText(this, text, Toast.LENGTH_LONG).show();
+
+            final Runnable speechRunnable = new Runnable() {
+                public void run() {
+                    if (finishSpeech) {
+                        finishSpeech = false;
+                        promptSpeechInput();
+                    }
+                    speechHandler.postDelayed(this, 500);
+                }
+            };
+
+            speechHandler.postDelayed(speechRunnable, 500);
         }
     }
-
-    private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
-        @Override
-        public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
-            Log.i("onConnectionStateChange", "Status: " + status);
-            switch (newState) {
-                case BluetoothProfile.STATE_CONNECTED:
-                    Log.i("gattCallback", "STATE_CONNECTED");
-                    gatt.discoverServices();
-                    break;
-                case BluetoothProfile.STATE_DISCONNECTED:
-                    Log.e("gattCallback", "STATE_DISCONNECTED");
-                    break;
-                default:
-                    Log.e("gattCallback", "STATE_OTHER");
-            }
-        }
-
-        @Override
-        public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-            List<BluetoothGattService> services = gatt.getServices();
-            Log.i("onServicesDiscovered", services.toString());
-            gatt.readCharacteristic(services.get(1).getCharacteristics().get(0));
-        }
-
-        @Override
-        public void onCharacteristicRead(BluetoothGatt gatt,
-                                         BluetoothGattCharacteristic characteristic,
-                                         int status) {
-
-            Log.i("onCharacteristicRead", characteristic.toString());
-            gatt.disconnect();
-        }
-    };
 
     //----------------------------------------------------------------------------------------------
 
     private void speech(String text) {
-        textToSpeech = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
+        textToSpeech = new TextToSpeech(MainActivity.this, new TextToSpeech.OnInitListener() {
             @Override
             public void onInit(int status) {
+
+                textToSpeech.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                    @Override
+                    public void onStart(String utteranceId) {
+                        finishSpeech = false;
+                    }
+
+                    @Override
+                    public void onError(String utteranceId) {
+                        finishSpeech = true;
+                    }
+
+                    @Override
+                    public void onDone(String utteranceId) {
+                        finishSpeech = true;
+                    }
+                });
+
                 if (status != TextToSpeech.ERROR) {
                     textToSpeech.setLanguage(Locale.getDefault());
-                    textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, null);
+                    textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null,
+                            TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID);
                 }
             }
         });
+    }
+
+    private void promptSpeechInput() {
+        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
+
+        try {
+            startActivityForResult(intent, REQ_CODE_SPEECH_INPUT);
+        } catch (ActivityNotFoundException a) {
+            Toast.makeText(getApplicationContext(),
+                    "Dispositivo móvel não suporta função de fala.",
+                    Toast.LENGTH_SHORT).show();
+        }
     }
 
     public void defineDirectionTo(View view) {
@@ -491,7 +513,9 @@ public class MainActivity extends Activity implements SensorEventListener {
         }
 
         if (toSpeech) {
+            finishSpeech = false;
             speech(textAngle);
+            Toast.makeText(this, textAngle, Toast.LENGTH_SHORT).show();
             toSpeech = false;
         }
     }
@@ -503,47 +527,57 @@ public class MainActivity extends Activity implements SensorEventListener {
         return difAngle <= 5;
     }
 
-    private String buildTextOptions(Beacon beacon, String idBeaconFrom) {
+    private String buildTextOptions(Beacon beacon, String addressBeaconFrom) {
         String options;
         Beacon beaconFrom = new Beacon();
 
-        if (!idBeaconFrom.isEmpty()) {
-            beaconFrom = beacon.getNeighborhood().stream()
-                    .filter(b -> b.getId().equals(idBeaconFrom)).findFirst().get();
-
-            beacon.getNeighborhood().remove(beaconFrom);
-        }
-        int numNeighbors = beacon.getNeighborhood().size();
-
-        if (numNeighbors > 1) {
-            options = "Gostaria de ir para ";
-            int angleFrom = idBeaconFrom != null ? calculateAngle(beaconFrom, beacon) : 0;
-
-            for (int i = 0; i < numNeighbors; i++) {
-                Beacon beaconTo = beacon.getNeighborhood().get(i);
-                String neighbor = beaconTo.getDescription();
-                int dist = calculateDistance(beacon, beaconTo);
-                int angleTo = calculateAngle(beacon, beaconTo);
-
-                String messageAngle = buildTextAngle(angleFrom, angleTo);
-
-                if (i == 0) {
-                    options += neighbor; // + ", a " + dist + " metros " + messageAngle;
-                } else if (i == numNeighbors - 1) {
-                    options += " ou " + neighbor; // + ", a " + dist + " metros " + messageAngle + "?";
-                } else {
-                    options += ", " + neighbor; // + ", a " + dist + " metros " + messageAngle;
-                }
-            }
+        if (speechOption == 0) {
+            options = "Você está em " + beacon.getDescription() + ". " +
+                    "Deseja entrar com um destino ou apenas ser informado " +
+                    "sobre sua localização ao longo do caminho?";
         } else {
-            if (beacon.getNeighborhood().isEmpty() || idBeaconFrom != null) {
-                options = "Não há suporte.";
-            } else {
-                Beacon beaconTo = beacon.getNeighborhood().get(0);
-                double dist = calculateDistance(beacon, beaconTo);
-                String neighbor = beaconTo.getDescription();
 
-                options = neighbor; // + ", a " + dist + " metros.";
+            if (!addressBeaconFrom.isEmpty()) {
+                beaconFrom = beaconRepository.findBeaconByAddress(addressBeaconFrom);
+
+                beacon.getNeighborhood().remove(addressBeaconFrom);
+            }
+            int numNeighbors = beacon.getNeighborhood().size();
+
+            if (numNeighbors > 1) {
+                options = "Gostaria de ir para ";
+                int angleFrom = addressBeaconFrom != null ? calculateAngle(beaconFrom, beacon) : 0;
+
+                for (int i = 0; i < numNeighbors; i++) {
+                    Beacon beaconTo = beaconRepository
+                            .findBeaconByAddress(beacon.getNeighborhood().get(i));
+
+                    String neighbor = beaconTo.getDescription();
+                    int dist = calculateDistance(beacon, beaconTo);
+                    int angleTo = calculateAngle(beacon, beaconTo);
+
+                    String messageAngle = buildTextAngle(angleFrom, angleTo);
+
+                    if (i == 0) {
+                        options += neighbor; // + ", a " + dist + " metros " + messageAngle;
+                    } else if (i == numNeighbors - 1) {
+                        options += " ou " + neighbor; // + ", a " + dist + " metros " + messageAngle + "?";
+                    } else {
+                        options += ", " + neighbor; // + ", a " + dist + " metros " + messageAngle;
+                    }
+                }
+            } else {
+                if (beacon.getNeighborhood().isEmpty() || addressBeaconFrom != null) {
+                    options = "Não há suporte.";
+                } else {
+                    Beacon beaconTo = beaconRepository
+                            .findBeaconByAddress(beacon.getNeighborhood().get(0));
+
+                    double dist = calculateDistance(beacon, beaconTo);
+                    String neighbor = beaconTo.getDescription();
+
+                    options = neighbor; // + ", a " + dist + " metros.";
+                }
             }
         }
 
@@ -564,17 +598,6 @@ public class MainActivity extends Activity implements SensorEventListener {
         }
 
         return message;
-    }
-
-    private Beacon readBeacon(JsonObject beaconData) {
-        Gson gson = new Gson();
-        Beacon beacon = null;
-        if (beaconData.has("id") && beaconData.has("latitude")
-                && beaconData.has("longitude") && beaconData.has("description")) {
-
-            beacon = gson.fromJson(beaconData, Beacon.class);
-        }
-        return beacon;
     }
 
     private int calculateDistance(Beacon beaconFrom, Beacon beaconTo) {

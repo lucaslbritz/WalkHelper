@@ -24,6 +24,9 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
         sourceCompatibility JavaVersion.VERSION_1_8
     }
+    repositories {
+        jcenter()
+    }
 }
 
 dependencies {
@@ -36,5 +39,5 @@ dependencies {
     compile 'com.google.code.findbugs:jsr305:2.0.1'
     testCompile 'junit:junit:4.12'
     compile 'com.google.code.gson:gson:2.7'
-    compile 'com.google.android.gms:play-services-nearby:10.2.6'
+    compile 'org.altbeacon:android-beacon-library:2+'
 }

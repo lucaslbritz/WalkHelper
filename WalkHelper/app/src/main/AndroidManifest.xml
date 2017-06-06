@@ -18,10 +18,6 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
-        <meta-data
-            android:name="com.google.android.nearby.message.API_KEY"
-            android:value="AIzaSyB4vIlDEB_oop9kf647iqi0A3YvwVo6Vec" />
-
         <activity android:name=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

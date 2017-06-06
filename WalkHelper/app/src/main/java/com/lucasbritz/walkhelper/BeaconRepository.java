@@ -1,7 +1,6 @@
 package com.lucasbritz.walkhelper;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
+import java.util.ArrayList;
 
 /**
  * Created by Lucas Britz on 24/05/2017.
@@ -9,253 +8,256 @@ import com.google.gson.JsonObject;
 
 public class BeaconRepository {
 
-    public JsonObject createBeacon1() {
-        JsonObject beaconData = beacon1();
+    public ArrayList<Beacon> findAllBeacons() {
+        ArrayList<Beacon> beaconList = new ArrayList<>();
+        beaconList.add(createBeacon1());
+        beaconList.add(createBeacon2());
+        beaconList.add(createBeacon3());
+        beaconList.add(createBeacon4());
+        beaconList.add(createBeacon5());
+        beaconList.add(createBeacon6());
+        beaconList.add(createBeacon7());
+        beaconList.add(createBeacon8());
+        beaconList.add(createBeacon9());
+        beaconList.add(createBeacon10());
 
-        JsonArray array = new JsonArray();
-        array.add(beacon2());
-
-        beaconData.add("neighborhood", array);
-
-        return beaconData;
+        return beaconList;
     }
 
-    public JsonObject createBeacon2() {
-        JsonObject beaconData = beacon2();
+    public Beacon findBeaconByAddress(String address) {
+        ArrayList<Beacon> beaconList = findAllBeacons();
 
-        JsonArray array = new JsonArray();
-        array.add(beacon1());
-        array.add(beacon3());
-
-        beaconData.add("neighborhood", array);
-
-        return beaconData;
+        return beaconList.stream()
+                .filter(b -> b.getAddress().equalsIgnoreCase(address))
+                .findFirst()
+                .get();
     }
 
-    public JsonObject createBeacon3() {
-        JsonObject beaconData = beacon3();
+    private Beacon createBeacon1() {
+        Beacon beacon = beacon1();
 
-        JsonArray array = new JsonArray();
-        array.add(beacon2());
-        array.add(beacon4());
+        ArrayList<String> neighborhood = new ArrayList<>();
+        neighborhood.add(beacon2().getAddress());
 
-        beaconData.add("neighborhood", array);
+        beacon.setNeighborhood(neighborhood);
 
-        return beaconData;
+        return beacon;
     }
 
-    public JsonObject createBeacon4() {
-        JsonObject beaconData = beacon4();
+    private Beacon createBeacon2() {
+        Beacon beacon = beacon2();
 
-        JsonArray array = new JsonArray();
-        array.add(beacon3());
-        array.add(beacon5());
+        ArrayList<String> neighborhood = new ArrayList<>();
+        neighborhood.add(beacon1().getAddress());
+        neighborhood.add(beacon3().getAddress());
 
-        beaconData.add("neighborhood", array);
+        beacon.setNeighborhood(neighborhood);
 
-        return beaconData;
+        return beacon;
     }
 
-    public JsonObject createBeacon5() {
-        JsonObject beaconData = beacon5();
+    private Beacon createBeacon3() {
+        Beacon beacon = beacon3();
 
-        JsonArray array = new JsonArray();
-        array.add(beacon4());
-        array.add(beacon6());
+        ArrayList<String> neighborhood = new ArrayList<>();
+        neighborhood.add(beacon2().getAddress());
+        neighborhood.add(beacon4().getAddress());
 
-        beaconData.add("neighborhood", array);
+        beacon.setNeighborhood(neighborhood);
 
-        return beaconData;
+        return beacon;
     }
 
-    public JsonObject createBeacon6() {
-        JsonObject beaconData = beacon6();
+    private Beacon createBeacon4() {
+        Beacon beacon = beacon4();
 
-        JsonArray array = new JsonArray();
-        array.add(beacon5());
-        array.add(beacon7());
+        ArrayList<String> neighborhood = new ArrayList<>();
+        neighborhood.add(beacon3().getAddress());
+        neighborhood.add(beacon5().getAddress());
 
-        beaconData.add("neighborhood", array);
+        beacon.setNeighborhood(neighborhood);
 
-        return beaconData;
+        return beacon;
     }
 
-    public JsonObject createBeacon7() {
-        JsonObject beaconData = beacon7();
+    private Beacon createBeacon5() {
+        Beacon beacon = beacon5();
 
-        JsonArray array = new JsonArray();
-        array.add(beacon6());
-        array.add(beacon8());
-        array.add(beacon9());
-        array.add(beacon10());
+        ArrayList<String> neighborhood = new ArrayList<>();
+        neighborhood.add(beacon4().getAddress());
+        neighborhood.add(beacon6().getAddress());
 
-        beaconData.add("neighborhood", array);
+        beacon.setNeighborhood(neighborhood);
 
-        return beaconData;
+        return beacon;
     }
 
-    public JsonObject createBeacon8() {
-        JsonObject beaconData = beacon8();
+    private Beacon createBeacon6() {
+        Beacon beacon = beacon6();
 
-        JsonArray array = new JsonArray();
-        array.add(beacon7());
+        ArrayList<String> neighborhood = new ArrayList<>();
+        neighborhood.add(beacon5().getAddress());
+        neighborhood.add(beacon7().getAddress());
 
-        beaconData.add("neighborhood", array);
+        beacon.setNeighborhood(neighborhood);
 
-        return beaconData;
+        return beacon;
     }
 
-    public JsonObject createBeacon9() {
-        JsonObject beaconData = beacon9();
+    private Beacon createBeacon7() {
+        Beacon beacon = beacon7();
 
-        JsonArray array = new JsonArray();
-        array.add(beacon7());
+        ArrayList<String> neighborhood = new ArrayList<>();
+        neighborhood.add(beacon6().getAddress());
+        neighborhood.add(beacon8().getAddress());
+        neighborhood.add(beacon9().getAddress());
+        neighborhood.add(beacon10().getAddress());
 
-        beaconData.add("neighborhood", array);
+        beacon.setNeighborhood(neighborhood);
 
-        return beaconData;
+        return beacon;
     }
 
-    public JsonObject createBeacon10() {
-        JsonObject beaconData = beacon3();
+    private Beacon createBeacon8() {
+        Beacon beacon = beacon8();
 
-        JsonArray array = new JsonArray();
-        array.add(beacon7());
+        ArrayList<String> neighborhood = new ArrayList<>();
+        neighborhood.add(beacon7().getAddress());
 
-        beaconData.add("neighborhood", array);
+        beacon.setNeighborhood(neighborhood);
 
-        return beaconData;
+        return beacon;
     }
 
-    private JsonObject beacon0() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", "11111111-1111-1111-1111-111111111111");
-        beaconData.addProperty("latitude", -29.793008);
-        beaconData.addProperty("longitude", -51.152395);
-        beaconData.addProperty("description", "Fábrica de Softwares");
-        beaconData.addProperty("floorLevel", 2);
-        beaconData.addProperty("active", true);
+    private Beacon createBeacon9() {
+        Beacon beacon = beacon9();
 
-        return beaconData;
+        ArrayList<String> neighborhood = new ArrayList<>();
+        neighborhood.add(beacon7().getAddress());
+
+        beacon.setNeighborhood(neighborhood);
+
+        return beacon;
     }
 
-    private JsonObject beacon1() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", "1");
-        beaconData.addProperty("latitude", -29.792233);
-        beaconData.addProperty("longitude", -51.154587);
-        beaconData.addProperty("description", "Unisinos. Acesso principal");
-        beaconData.addProperty("floorLevel", 1);
-        beaconData.addProperty("active", true);
+    private Beacon createBeacon10() {
+        Beacon beacon = beacon10();
 
-        return beaconData;
+        ArrayList<String> neighborhood = new ArrayList<>();
+        neighborhood.add(beacon7().getAddress());
+
+        beacon.setNeighborhood(neighborhood);
+
+        return beacon;
     }
 
-    private JsonObject beacon2() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", "2");
-        beaconData.addProperty("latitude", -29.792576);
-        beaconData.addProperty("longitude", -51.154477);
-        beaconData.addProperty("description", "B02");
-        beaconData.addProperty("floorLevel", 1);
-        beaconData.addProperty("active", true);
+    private Beacon beacon1() {
+        Beacon beacon = new Beacon();
+        beacon.setAddress("01:01:01:01:01:01");
+        beacon.setLatitude(-29.792233);
+        beacon.setLongitude(-51.154587);
+        beacon.setDescription("B1");
+        beacon.setFloorLevel(1);
 
-        return beaconData;
+        return beacon;
     }
 
-    private JsonObject beacon3() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", "3");
-        beaconData.addProperty("latitude", -29.792732);
-        beaconData.addProperty("longitude", -51.154429);
-        beaconData.addProperty("description", "B03");
-        beaconData.addProperty("floorLevel", 1);
-        beaconData.addProperty("active", true);
+    private Beacon beacon2() {
+        Beacon beacon = new Beacon();
+        beacon.setAddress("02:02:02:02:02:02");
+        beacon.setLatitude(-29.792576);
+        beacon.setLongitude(-51.154477);
+        beacon.setDescription("B2");
+        beacon.setFloorLevel(1);
 
-        return beaconData;
+        return beacon;
     }
 
-    private JsonObject beacon4() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", "4");
-        beaconData.addProperty("latitude", -29.792918);
-        beaconData.addProperty("longitude", -51.154365);
-        beaconData.addProperty("description", "B04");
-        beaconData.addProperty("floorLevel", 1);
-        beaconData.addProperty("active", true);
+    private Beacon beacon3() {
+        Beacon beacon = new Beacon();
+        beacon.setAddress("03:03:03:03:03:03");
+        beacon.setLatitude(-29.792732);
+        beacon.setLongitude(-51.154429);
+        beacon.setDescription("B3");
+        beacon.setFloorLevel(1);
 
-        return beaconData;
+        return beacon;
     }
 
-    private JsonObject beacon5() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", "5");
-        beaconData.addProperty("latitude", -29.793078);
-        beaconData.addProperty("longitude", -51.154331);
-        beaconData.addProperty("description", "B05");
-        beaconData.addProperty("floorLevel", 1);
-        beaconData.addProperty("active", true);
+    private Beacon beacon4() {
+        Beacon beacon = new Beacon();
+        beacon.setAddress("04:04:04:04:04:04");
+        beacon.setLatitude(-29.792918);
+        beacon.setLongitude(-51.154365);
+        beacon.setDescription("B4");
+        beacon.setFloorLevel(1);
 
-        return beaconData;
+        return beacon;
     }
 
-    private JsonObject beacon6() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", "6");
-        beaconData.addProperty("latitude", -29.793248);
-        beaconData.addProperty("longitude", -51.154283);
-        beaconData.addProperty("description", "B06");
-        beaconData.addProperty("floorLevel", 1);
-        beaconData.addProperty("active", true);
+    private Beacon beacon5() {
+        Beacon beacon = new Beacon();
+        beacon.setAddress("05:05:05:05:05:05");
+        beacon.setLatitude(-29.793078);
+        beacon.setLongitude(-51.154331);
+        beacon.setDescription("B5");
+        beacon.setFloorLevel(1);
 
-        return beaconData;
+        return beacon;
     }
 
-    private JsonObject beacon7() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", "7");
-        beaconData.addProperty("latitude", -29.793767);
-        beaconData.addProperty("longitude", -51.154152);
-        beaconData.addProperty("description", "B07");
-        beaconData.addProperty("floorLevel", 1);
-        beaconData.addProperty("active", true);
+    private Beacon beacon6() {
+        Beacon beacon = new Beacon();
+        beacon.setAddress("06:06:06:06:06:06");
+        beacon.setLatitude(-29.793248);
+        beacon.setLongitude(-51.154283);
+        beacon.setDescription("B6");
+        beacon.setFloorLevel(1);
 
-        return beaconData;
+        return beacon;
     }
 
-    private JsonObject beacon8() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", "8");
-        beaconData.addProperty("latitude", -29.793639);
-        beaconData.addProperty("longitude", -51.153535);
-        beaconData.addProperty("description", "auditório central");
-        beaconData.addProperty("floorLevel", 1);
-        beaconData.addProperty("active", true);
+    private Beacon beacon7() {
+        Beacon beacon = new Beacon();
+        beacon.setAddress("D3:8A:63:6D:FB:79");
+        beacon.setLatitude(-29.793767);
+        beacon.setLongitude(-51.154152);
+        beacon.setDescription("B7");
+        beacon.setFloorLevel(1);
 
-        return beaconData;
+        return beacon;
     }
 
-    private JsonObject beacon9() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", "9");
-        beaconData.addProperty("latitude", -29.794247);
-        beaconData.addProperty("longitude", -51.154771);
-        beaconData.addProperty("description", "redondo");
-        beaconData.addProperty("floorLevel", 1);
-        beaconData.addProperty("active", true);
+    private Beacon beacon8() {
+        Beacon beacon = new Beacon();
+        beacon.setAddress("08:08:08:08:08:08");
+        beacon.setLatitude(-29.793639);
+        beacon.setLongitude(-51.153535);
+        beacon.setDescription("auditório central");
+        beacon.setFloorLevel(1);
 
-        return beaconData;
+        return beacon;
     }
 
-    private JsonObject beacon10() {
-        JsonObject beaconData = new JsonObject();
-        beaconData.addProperty("id", "10");
-        beaconData.addProperty("latitude", -29.795341);
-        beaconData.addProperty("longitude", -51.153741);
-        beaconData.addProperty("description", "corredor principal, próximo ao Fratélo");
-        beaconData.addProperty("floorLevel", 1);
-        beaconData.addProperty("active", true);
+    private Beacon beacon9() {
+        Beacon beacon = new Beacon();
+        beacon.setAddress("09:09:09:09:09:09");
+        beacon.setLatitude(-29.794247);
+        beacon.setLongitude(-51.154771);
+        beacon.setDescription("redondo");
+        beacon.setFloorLevel(1);
 
-        return beaconData;
+        return beacon;
+    }
+
+    private Beacon beacon10() {
+        Beacon beacon = new Beacon();
+        beacon.setAddress("10:10:10:10:10:10");
+        beacon.setLatitude(-29.795341);
+        beacon.setLongitude(-51.153741);
+        beacon.setDescription("corredor principal, próximo ao Fratelo");
+        beacon.setFloorLevel(1);
+
+        return beacon;
     }
 }
