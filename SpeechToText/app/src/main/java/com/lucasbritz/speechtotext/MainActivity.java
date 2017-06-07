@@ -15,7 +15,6 @@ import java.util.Locale;
 
 public class MainActivity extends Activity {
     private TextView txtSpeechInput;
-    private Button btnSpeak;
     private final int REQ_CODE_SPEECH_INPUT = 100;
 
     @Override
@@ -24,12 +23,12 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 
         txtSpeechInput = (TextView) findViewById(R.id.txtSpeechInput);
-        btnSpeak = (Button) findViewById(R.id.btnSpeak);
+        Button btnSpeak = (Button) findViewById(R.id.btnSpeak);
 
         btnSpeak.setOnClickListener(new View.OnClickListener() {
 
             @Override
-            public void onClick(View v) {
+            public void onClick(View view) {
                 promptSpeechInput();
             }
         });
